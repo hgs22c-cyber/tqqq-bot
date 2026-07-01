@@ -76,6 +76,7 @@ def get_overseas_balance() -> dict:
         "cash_balance": 외화예수금/Pool(float, USD),
     }
     """
+    # 1. 기존의 inquire-balance 호출하여 주식 보유 현황 가져오기
     url = f"{auth.BASE_URL}/uapi/overseas-stock/v1/trading/inquire-balance"
     headers = auth.auth_headers(_tr("balance"))
     params = {
@@ -89,26 +90,53 @@ def get_overseas_balance() -> dict:
     res = requests.get(url, headers=headers, params=params, timeout=10)
     res.raise_for_status()
     body = res.json()
-    if body.get("rt_cd") != "0":
-        raise RuntimeError(f"잔고 조회 실패: {body.get('msg1')}")
-
-    holdings = body.get("output1", [])
+    
     qty = 0
     avg_price = 0.0
     eval_amount = 0.0
-    for h in holdings:
-        if h.get("ovrs_pdno") == "TQQQ" or h.get("pdno") == "TQQQ":
-            qty = int(float(h.get("ovrs_cblc_qty", 0)))
-            avg_price = float(h.get("pchs_avg_pric", 0))
-            eval_amount = float(h.get("ovrs_stck_evlu_amt", 0))
-            break
+    
+    if body.get("rt_cd") == "0":
+        holdings = body.get("output1", [])
+        for h in holdings:
+            if h.get("ovrs_pdno") == "TQQQ" or h.get("pdno") == "TQQQ":
+                qty = int(float(h.get("ovrs_cblc_qty", 0)))
+                avg_price = float(h.get("pchs_avg_pric", 0))
+                eval_amount = float(h.get("ovrs_stck_evlu_amt", 0))
+                break
 
-    summary = body.get("output2", {})
-    # output2가 리스트로 오는 경우가 있음 -> 첫 번째 원소를 사용
-    if isinstance(summary, list):
-        summary = summary[0] if summary else {}
-    # 필드명은 실제 응답 구조에 맞춰 조정 필요 (모의투자로 1회 호출해 실제 키를 확인할 것)
-    cash_balance = float(summary.get("frcr_dncl_amt_2", summary.get("frcr_evlu_tota_amt", 0)))
+    # KIS API 초당 제한(TPS) 회피용 짧은 지연
+    time.sleep(0.2)
+
+    # 2. inquire-present-balance 호출하여 실제 달러 예수금 가져오기
+    tr_id_present = "VTRP6504R" if auth.IS_PAPER else "CTRP6504R"
+    url_present = f"{auth.BASE_URL}/uapi/overseas-stock/v1/trading/inquire-present-balance"
+    headers_present = auth.auth_headers(tr_id_present)
+    params_present = {
+        "CANO": auth.ACCOUNT_NO,
+        "ACNT_PRDT_CD": auth.ACCOUNT_PROD_CD,
+        "WCRC_FRCR_DVSN_CD": "02",  # 외화
+        "NATN_CD": "840",          # 미국
+        "TR_MKET_CD": "00",        # 전체
+        "INQR_DVSN_CD": "00",
+    }
+    res_present = requests.get(url_present, headers=headers_present, params=params_present, timeout=10)
+    res_present.raise_for_status()
+    body_present = res_present.json()
+    
+    cash_balance = 0.0
+    if body_present.get("rt_cd") == "0":
+        summary_list = body_present.get("output2", [])
+        if summary_list:
+            for s in summary_list:
+                if s.get("crcy_cd") == "USD":
+                    cash_balance = float(s.get("frcr_dncl_amt_2", 0))
+                    break
+            else:
+                cash_balance = float(summary_list[0].get("frcr_dncl_amt_2", 0))
+        else:
+            # output2가 비어있으면 원화자산 정보라도 활용
+            output3 = body_present.get("output3", {})
+            cash_balance = float(output3.get("tot_dncl_amt", 0))
 
     return {
         "qty": qty,
