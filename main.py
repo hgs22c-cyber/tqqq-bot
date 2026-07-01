@@ -52,7 +52,7 @@ def _place_grid_orders(sell_grid_remaining: list, buy_grid_remaining: list) -> i
             placed += 1
         else:
             print(f"  [매도 주문 실패] price={leg['price']:.2f} msg={result['message']}")
-        time.sleep(0.3)
+        time.sleep(1.0)
 
     for leg in buy_grid_remaining:
         result = kis.place_limit_order(SYMBOL, "buy", qty=1, price=leg["price"])
@@ -60,7 +60,7 @@ def _place_grid_orders(sell_grid_remaining: list, buy_grid_remaining: list) -> i
             placed += 1
         else:
             print(f"  [매수 주문 실패] price={leg['price']:.2f} msg={result['message']}")
-        time.sleep(0.3)
+        time.sleep(1.0)
 
     return placed
 
@@ -87,7 +87,7 @@ def _start_new_cycle(state: dict, qty: int, pool: float, current_price: float) -
     cancelled = kis.cancel_all_pending_orders(SYMBOL)
     if cancelled:
         print(f"  기존 미체결 주문 {cancelled}건 취소")
-    time.sleep(0.3)
+    time.sleep(1.0)
 
     placed = _place_grid_orders(
         [o.to_dict() for o in result.sell_grid],
@@ -132,7 +132,7 @@ def _continue_cycle(state: dict, qty: int) -> tuple:
     state["buy_grid_remaining"] = buy_remaining
 
     kis.cancel_all_pending_orders(SYMBOL)  # 안전장치 (보통 자동취소되어 이미 비어있음)
-    time.sleep(0.3)
+    time.sleep(1.0)
     placed = _place_grid_orders(sell_remaining, buy_remaining)
 
     state = sm.advance_day(state)
@@ -149,7 +149,7 @@ def run_daily() -> None:
     balance = kis.get_overseas_balance()
     qty = balance["qty"]
     pool = balance["cash_balance"]
-    time.sleep(0.3)  # KIS API 초당 요청 제한(TPS) 회피
+    time.sleep(1.0)  # KIS API 초당 요청 제한(TPS) 회피
     current_price = kis.get_current_price(SYMBOL)
 
     is_cycle_start = (not state.get("initialized")) or sm.is_cycle_end(state)
