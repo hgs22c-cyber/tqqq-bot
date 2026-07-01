@@ -26,7 +26,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     [sys.executable, 'main.py'],
                     capture_output=True,
                     text=True,
-                    timeout=45,
+                    timeout=300,
                     encoding='utf-8'
                 )
                 
