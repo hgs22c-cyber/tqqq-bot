@@ -52,6 +52,8 @@
             margin-bottom: 2rem;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .logo-section h1 {
@@ -66,6 +68,12 @@
             font-size: 0.9rem;
             color: var(--text-muted);
             margin-top: 0.2rem;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
         }
 
         .status-badge {
@@ -100,6 +108,38 @@
             0% { opacity: 0.5; }
             50% { opacity: 1; }
             100% { opacity: 0.5; }
+        }
+
+        /* Run Button */
+        .btn-run {
+            background: linear-gradient(135deg, var(--primary), #a855f7);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .btn-run:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-run:active {
+            transform: translateY(0);
+        }
+
+        .btn-run:disabled {
+            background: #4b5563;
+            color: #9ca3af;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
         }
 
         /* Overview Cards */
@@ -256,6 +296,97 @@
             border-radius: 4px;
             font-size: 0.75rem;
         }
+
+        /* Modal Overlay (Terminal) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-container {
+            background-color: #111827;
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 700px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
+
+        .modal-header {
+            background-color: rgba(255, 255, 255, 0.03);
+            padding: 0.85rem 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .modal-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.2rem;
+            line-height: 1;
+        }
+
+        .btn-close:hover {
+            color: white;
+        }
+
+        .modal-body {
+            padding: 1.2rem;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .terminal-box {
+            background-color: #030712;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            color: #10b981; /* Green text */
+            white-space: pre-wrap;
+            min-height: 250px;
+            max-height: 450px;
+            overflow-y: auto;
+        }
+
+        .terminal-box.error {
+            color: var(--danger);
+        }
     </style>
 </head>
 <body>
@@ -266,9 +397,12 @@
                 <h1>TQQQ Grid Bot Dashboard</h1>
                 <p>한국투자증권 API 연동 리밸런싱 자동매매 대시보드</p>
             </div>
-            <div id="status-badge" class="status-badge">
-                <div class="status-dot"></div>
-                <span id="status-text">실시간 연동</span>
+            <div class="header-controls">
+                <button id="btn-run" class="btn-run" onclick="triggerBotRun()">지금 바로 봇 실행 (Run)</button>
+                <div id="status-badge" class="status-badge">
+                    <div class="status-dot"></div>
+                    <span id="status-text">실시간 연동</span>
+                </div>
             </div>
         </header>
 
@@ -362,9 +496,29 @@
         </div>
     </div>
 
+    <!-- Terminal Output Modal -->
+    <div id="run-modal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span style="color:var(--primary); font-weight:bold;">▶</span>
+                    <span>TQQQ Bot Execution Log (서버 실행 기록)</span>
+                </div>
+                <button class="btn-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="terminal-content" class="terminal-box">실행 대기 중...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Script Block -->
     <script>
-        // 데모 데이터 (실제 logs/daily_log.json 이 없을 때 fallback 으로 활용)
+        // 전역 차트 인스턴스 저장용 변수
+        let assetChartInstance = null;
+        let ratioChartInstance = null;
+
+        // 데모 데이터
         const DEMO_DATA = [
             { "date": "2026-06-22", "cycle_number": 1, "day_in_cycle": 0, "eval_amount": 10000.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1000.00, "holdings_qty": 113, "current_price": 79.64, "orders_placed_today": 12, "note": "신규 사이클 1 시작" },
             { "date": "2026-06-23", "cycle_number": 1, "day_in_cycle": 1, "eval_amount": 10090.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1000.00, "holdings_qty": 113, "current_price": 80.44, "orders_placed_today": 12, "note": "" },
@@ -422,6 +576,10 @@
                 tbody.appendChild(tr);
             });
 
+            // 이전 차트 인스턴스 파괴 (중복 렌더링 방지)
+            if (assetChartInstance) assetChartInstance.destroy();
+            if (ratioChartInstance) ratioChartInstance.destroy();
+
             // 1. 자산 추이 라인 차트 생성
             const dates = data.map(d => d.date.substring(5)); // '06-22' 형태로 축소
             const evalAmounts = data.map(d => d.eval_amount);
@@ -430,7 +588,7 @@
             const vMaxs = data.map(d => d.v_max);
 
             const ctxAsset = document.getElementById('assetChart').getContext('2d');
-            new Chart(ctxAsset, {
+            assetChartInstance = new Chart(ctxAsset, {
                 type: 'line',
                 data: {
                     labels: dates,
@@ -502,7 +660,7 @@
             const latestPool = latest.pool;
 
             const ctxRatio = document.getElementById('ratioChart').getContext('2d');
-            new Chart(ctxRatio, {
+            ratioChartInstance = new Chart(ctxRatio, {
                 type: 'doughnut',
                 data: {
                     labels: ['TQQQ 주식 평가금', '가용 현금(Pool)'],
@@ -529,23 +687,78 @@
             });
         }
 
-        // 서버에서 logs/daily_log.json 파일 호출
-        fetch('logs/daily_log.json')
-            .then(res => {
-                if (!res.ok) throw new Error('파일이 없음');
-                return res.json();
-            })
-            .then(data => {
-                if (data && data.length > 0) {
-                    renderDashboard(data, false);
-                } else {
+        // 데이터 로드
+        function loadLogData() {
+            // 캐시 방지를 위해 쿼리스트링 추가
+            fetch('logs/daily_log.json?t=' + new Date().getTime())
+                .then(res => {
+                    if (!res.ok) throw new Error('파일이 없음');
+                    return res.json();
+                })
+                .then(data => {
+                    if (data && data.length > 0) {
+                        renderDashboard(data, false);
+                    } else {
+                        renderDashboard(DEMO_DATA, true);
+                    }
+                })
+                .catch(err => {
+                    console.log("실제 로그 데이터를 불러오지 못해 데모 화면을 띄웁니다.", err);
                     renderDashboard(DEMO_DATA, true);
-                }
-            })
-            .catch(err => {
-                console.log("실제 로그 데이터를 불러오지 못해 데모 화면을 띄웁니다.", err);
-                renderDashboard(DEMO_DATA, true);
-            });
+                });
+        }
+
+        // 봇 실행 API 호출 함수
+        function triggerBotRun() {
+            const btn = document.getElementById("btn-run");
+            const term = document.getElementById("terminal-content");
+            const modal = document.getElementById("run-modal");
+
+            btn.disabled = true;
+            btn.innerText = "봇 실행 중...";
+            
+            term.className = "terminal-box";
+            term.innerText = "서버로 실행 신호를 보냈습니다...\n봇이 작동 중이며 계좌 잔고를 조회하고 매수/매도 그리드를 계산하고 있습니다.\n(약 5~15초 소요)";
+            modal.classList.add("show");
+
+            fetch('/api/run', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerText = "지금 바로 봇 실행 (Run)";
+                    
+                    if (data.success) {
+                        term.innerText = "==================================================\n" +
+                                         " [SUCCESS] 봇 실행 완료\n" +
+                                         "==================================================\n\n" +
+                                         data.stdout;
+                        // 성공했으므로 최신 데이터로 대시보드 갱신
+                        loadLogData();
+                    } else {
+                        term.className = "terminal-box error";
+                        term.innerText = "==================================================\n" +
+                                         " [ERROR] 실행 오류가 발생했습니다.\n" +
+                                         "==================================================\n\n" +
+                                         (data.stderr || data.error || "알 수 없는 오류");
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerText = "지금 바로 봇 실행 (Run)";
+                    term.className = "terminal-box error";
+                    term.innerText = "==================================================\n" +
+                                     " [CONNECTION ERROR] 서버와의 통신에 실패했습니다.\n" +
+                                     "==================================================\n\n" +
+                                     err.message;
+                });
+        }
+
+        function closeModal() {
+            document.getElementById("run-modal").classList.remove("show");
+        }
+
+        // 초기 데이터 로드
+        loadLogData();
     </script>
 </body>
 </html>
