@@ -149,6 +149,12 @@ def run_daily() -> None:
     balance = kis.get_overseas_balance()
     qty = balance["qty"]
     pool = balance["cash_balance"]
+    
+    if qty == 0 and pool <= 0.0:
+        print("[경고] TQQQ 보유 수량과 예수금이 모두 0입니다. 전략을 시작할 수 없습니다. 계좌에 예수금을 입금하거나 TQQQ를 수동으로 매수한 뒤 실행해주세요.")
+        notifier.send_message("[경고] TQQQ 보유 수량과 예수금이 모두 0입니다. 자동매매를 시작할 수 없습니다.")
+        return
+
     time.sleep(1.0)  # KIS API 초당 요청 제한(TPS) 회피
     current_price = kis.get_current_price(SYMBOL)
 

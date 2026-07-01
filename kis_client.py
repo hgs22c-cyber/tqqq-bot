@@ -18,6 +18,7 @@ TQQQ 자동매매에 필요한 최소 기능만 구현:
 """
 
 import json
+import time
 import requests
 import kis_auth as auth
 
@@ -103,6 +104,9 @@ def get_overseas_balance() -> dict:
             break
 
     summary = body.get("output2", {})
+    # output2가 리스트로 오는 경우가 있음 -> 첫 번째 원소를 사용
+    if isinstance(summary, list):
+        summary = summary[0] if summary else {}
     # 필드명은 실제 응답 구조에 맞춰 조정 필요 (모의투자로 1회 호출해 실제 키를 확인할 것)
     cash_balance = float(summary.get("frcr_dncl_amt_2", summary.get("frcr_evlu_tota_amt", 0)))
 
@@ -210,4 +214,5 @@ def cancel_all_pending_orders(symbol: str) -> int:
             result = cancel_order(o["order_no"], o["symbol"], o["qty"], o["price"])
             if result["success"]:
                 count += 1
+            time.sleep(1.0)  # KIS API 초당 요청 제한(TPS) 회피
     return count

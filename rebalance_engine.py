@@ -25,6 +25,8 @@ G_GRADIENT = 10          # V값 상승 기울기 조절 상수
 BAND_RATIO = 0.15        # 밴드 비율 (±15%)
 POOL_USAGE_LIMIT_RATIO = 0.75   # 사이클당 Pool 사용 한도 (75%)
 CYCLE_TRADING_DAYS = 10  # 1사이클 = 10거래일(2주)
+MAX_GRID_LEGS = 60       # 매수/매도 그리드 최대 건수 (폭주 방지 안전장치)
+MIN_ORDER_PRICE = 1.00   # 최소 주문 가격 ($1 미만은 비현실적이므로 차단)
 
 
 @dataclass
@@ -117,7 +119,7 @@ def generate_sell_grid(sell_line: float, current_qty: int) -> list:
 
     grid = []
     temp_qty = current_qty
-    while temp_qty > 1:
+    while temp_qty > 1 and len(grid) < MAX_GRID_LEGS:
         price = sell_line / temp_qty
         grid.append(GridOrder(price=price, qty=1))
         temp_qty -= 1
@@ -157,18 +159,17 @@ def generate_buy_grid(buy_line: float, current_qty: int, pool_buy_limit: float) 
     temp_qty = current_qty
     spent = 0.0
 
-    # 안전장치: 무한루프 방지 (이론상 pool_buy_limit이 0 이하면 바로 종료됨)
-    max_iterations = 100_000
-    iterations = 0
-
-    while iterations < max_iterations:
+    while len(grid) < MAX_GRID_LEGS:
         price = buy_line / (temp_qty + 1)
+        # 안전장치 1: 누적 매수금액이 한도 초과 시 중단
         if spent + price > pool_buy_limit:
+            break
+        # 안전장치 2: 비현실적으로 낮은 가격의 주문은 생성하지 않음
+        if price < MIN_ORDER_PRICE:
             break
         grid.append(GridOrder(price=price, qty=1))
         spent += price
         temp_qty += 1
-        iterations += 1
 
     return grid, spent
 
