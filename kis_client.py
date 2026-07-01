@@ -105,7 +105,7 @@ def get_overseas_balance() -> dict:
                 break
 
     # KIS API 초당 제한(TPS) 회피용 짧은 지연
-    time.sleep(0.2)
+    time.sleep(0.5)
 
     # 2. inquire-present-balance 호출하여 실제 달러 예수금 가져오기
     tr_id_present = "VTRP6504R" if auth.IS_PAPER else "CTRP6504R"
@@ -182,6 +182,7 @@ def place_limit_order(symbol: str, side: str, qty: int, price: float) -> dict:
 
 def get_pending_orders() -> list:
     """미체결 주문 목록 조회. 각 원소: {"order_no", "symbol", "side", "qty", "price"}"""
+    time.sleep(0.5)  # 초당 거래건수 제한(TPS) 회피를 위한 지연 추가
     url = f"{auth.BASE_URL}/uapi/overseas-stock/v1/trading/inquire-nccs"
     headers = auth.auth_headers(_tr("pending_orders"))
     params = {
