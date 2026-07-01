@@ -28,6 +28,7 @@ main.py - 일일 실행 진입점
 
 import os
 import sys
+import time
 import traceback
 from datetime import date
 
@@ -42,7 +43,8 @@ BIWEEKLY_DEPOSIT_USD = float(os.getenv("BIWEEKLY_DEPOSIT_USD", "0"))
 
 
 def _place_grid_orders(sell_grid_remaining: list, buy_grid_remaining: list) -> int:
-    """잔여 그리드를 오늘자로 전량 지정가 주문 전송. 성공 건수 반환."""
+    """잔여 그리드를 오늘자로 전량 지정가 주문 전송. 성공 건수 반환.
+    KIS API는 초당 요청 수 제한(TPS)이 있어 각 주문 사이에 짧은 딜레이를 둔다."""
     placed = 0
     for leg in sell_grid_remaining:
         result = kis.place_limit_order(SYMBOL, "sell", qty=1, price=leg["price"])
@@ -50,6 +52,7 @@ def _place_grid_orders(sell_grid_remaining: list, buy_grid_remaining: list) -> i
             placed += 1
         else:
             print(f"  [매도 주문 실패] price={leg['price']:.2f} msg={result['message']}")
+        time.sleep(0.3)
 
     for leg in buy_grid_remaining:
         result = kis.place_limit_order(SYMBOL, "buy", qty=1, price=leg["price"])
@@ -57,18 +60,18 @@ def _place_grid_orders(sell_grid_remaining: list, buy_grid_remaining: list) -> i
             placed += 1
         else:
             print(f"  [매수 주문 실패] price={leg['price']:.2f} msg={result['message']}")
+        time.sleep(0.3)
 
     return placed
 
 
-def _start_new_cycle(state: dict, qty: int, pool: float) -> dict:
+def _start_new_cycle(state: dict, qty: int, pool: float, current_price: float) -> dict:
     """사이클 시작(Day1) 또는 최초 실행: V/밴드/그리드 재계산 후 전량 주문."""
     v_old = state.get("v_current") or 0.0
 
     if not state.get("initialized"):
         # 최초 실행: V_old를 알 수 없으므로 "현재 보유주식 평가금액"을 V_old로 가정한다.
         # 이 가정이 마음에 들지 않으면 state.json을 직접 만들어 v_current를 지정한 뒤 실행하세요.
-        current_price = kis.get_current_price(SYMBOL)
         v_old = qty * current_price
         print(f"  [최초 실행] v_old를 현재 평가금액으로 초기화: ${v_old:,.2f}")
 
@@ -84,6 +87,7 @@ def _start_new_cycle(state: dict, qty: int, pool: float) -> dict:
     cancelled = kis.cancel_all_pending_orders(SYMBOL)
     if cancelled:
         print(f"  기존 미체결 주문 {cancelled}건 취소")
+    time.sleep(0.3)
 
     placed = _place_grid_orders(
         [o.to_dict() for o in result.sell_grid],
@@ -128,6 +132,7 @@ def _continue_cycle(state: dict, qty: int) -> tuple:
     state["buy_grid_remaining"] = buy_remaining
 
     kis.cancel_all_pending_orders(SYMBOL)  # 안전장치 (보통 자동취소되어 이미 비어있음)
+    time.sleep(0.3)
     placed = _place_grid_orders(sell_remaining, buy_remaining)
 
     state = sm.advance_day(state)
@@ -144,13 +149,14 @@ def run_daily() -> None:
     balance = kis.get_overseas_balance()
     qty = balance["qty"]
     pool = balance["cash_balance"]
+    time.sleep(0.3)  # KIS API 초당 요청 제한(TPS) 회피
     current_price = kis.get_current_price(SYMBOL)
 
     is_cycle_start = (not state.get("initialized")) or sm.is_cycle_end(state)
 
     if is_cycle_start:
         print(f"[{date.today()}] 사이클 시작(Day 1) - V/밴드/그리드 재계산")
-        state, placed = _start_new_cycle(state, qty, pool)
+        state, placed = _start_new_cycle(state, qty, pool, current_price)
         note = f"신규 사이클 {state['cycle_number']} 시작"
     else:
         print(f"[{date.today()}] 사이클 진행 중 (Day {state['day_in_cycle'] + 1}/10)")
