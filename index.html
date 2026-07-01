@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TQQQ Grid Rebalancing Bot Dashboard</title>
+    <meta name="description" content="TQQQ 자동매매 리밸런싱 봇의 실시간 대시보드입니다.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #161e31;
+            --text-color: #f3f4f6;
+            --text-muted: #9ca3af;
+            --primary: #6366f1; /* Indigo */
+            --primary-glow: rgba(99, 102, 241, 0.15);
+            --success: #10b981; /* Emerald Green */
+            --warning: #f59e0b; /* Amber */
+            --danger: #ef4444;  /* Red */
+            --border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem 1.5rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+        }
+
+        .logo-section h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a5b4fc, var(--primary), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-section p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            padding: 0.4rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-badge.demo {
+            background-color: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+            box-shadow: 0 0 8px currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        /* Overview Cards */
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), #a855f7);
+            opacity: 0.7;
+        }
+
+        .card.green::before {
+            background: var(--success);
+        }
+        .card.amber::before {
+            background: var(--warning);
+        }
+        .card.blue::before {
+            background: #3b82f6;
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .card-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .card-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Charts Layout */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        @media (min-width: 900px) {
+            .charts-section {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+
+        .chart-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 350px;
+        }
+
+        /* Logs Table */
+        .logs-section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.02);
+            color: var(--text-muted);
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.01);
+        }
+
+        .note-badge {
+            background-color: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo-section">
+                <h1>TQQQ Grid Bot Dashboard</h1>
+                <p>한국투자증권 API 연동 리밸런싱 자동매매 대시보드</p>
+            </div>
+            <div id="status-badge" class="status-badge">
+                <div class="status-dot"></div>
+                <span id="status-text">실시간 연동</span>
+            </div>
+        </header>
+
+        <!-- Metrics Cards -->
+        <div class="grid-cards">
+            <!-- Card 1 -->
+            <div class="card blue">
+                <div class="card-title">현재 자산 가치</div>
+                <div id="metric-assets" class="card-value">$0.00</div>
+                <div class="card-sub">
+                    <span id="metric-assets-diff">수량 * 현재가 + 예수금</span>
+                </div>
+            </div>
+            <!-- Card 2 -->
+            <div class="card green">
+                <div class="card-title">TQQQ 보유량</div>
+                <div id="metric-qty" class="card-value">0 주</div>
+                <div class="card-sub">
+                    <span>현재가: <strong id="metric-price">$0.00</strong></span>
+                </div>
+            </div>
+            <!-- Card 3 -->
+            <div class="card amber">
+                <div class="card-title">가용 현금 (Pool)</div>
+                <div id="metric-pool" class="card-value">$0.00</div>
+                <div class="card-sub">
+                    <span>전체 가용 한도 (75%): <strong id="metric-limit">$0.00</strong></span>
+                </div>
+            </div>
+            <!-- Card 4 -->
+            <div class="card">
+                <div class="card-title">봇 사이클 진행 현황</div>
+                <div id="metric-cycle" class="card-value">Day -</div>
+                <div class="card-sub">
+                    <span>현재 사이클: <strong id="metric-cycle-num">0</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-section">
+            <!-- Asset Chart -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">자산 가치 & 목표 밸류(V) 추이</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="assetChart"></canvas>
+                </div>
+            </div>
+            <!-- Ratio Chart -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">자산 포트폴리오 비중</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="ratioChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Table -->
+        <div class="logs-section">
+            <div class="chart-header">
+                <div class="chart-title">최근 일일 자동매매 실행 기록 (Logs)</div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>날짜</th>
+                            <th>사이클</th>
+                            <th>일차</th>
+                            <th>현재가</th>
+                            <th>보유수량</th>
+                            <th>현금(Pool)</th>
+                            <th>총 자산</th>
+                            <th>오늘 신규 주문</th>
+                            <th>비고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody">
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                                로그를 불러오고 있습니다...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Block -->
+    <script>
+        // 데모 데이터 (실제 logs/daily_log.json 이 없을 때 fallback 으로 활용)
+        const DEMO_DATA = [
+            { "date": "2026-06-22", "cycle_number": 1, "day_in_cycle": 0, "eval_amount": 10000.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1000.00, "holdings_qty": 113, "current_price": 79.64, "orders_placed_today": 12, "note": "신규 사이클 1 시작" },
+            { "date": "2026-06-23", "cycle_number": 1, "day_in_cycle": 1, "eval_amount": 10090.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1000.00, "holdings_qty": 113, "current_price": 80.44, "orders_placed_today": 12, "note": "" },
+            { "date": "2026-06-24", "cycle_number": 1, "day_in_cycle": 2, "eval_amount": 9970.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1000.00, "holdings_qty": 113, "current_price": 79.38, "orders_placed_today": 12, "note": "" },
+            { "date": "2026-06-25", "cycle_number": 1, "day_in_cycle": 3, "eval_amount": 9780.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1000.00, "holdings_qty": 113, "current_price": 77.69, "orders_placed_today": 12, "note": "" },
+            { "date": "2026-06-26", "cycle_number": 1, "day_in_cycle": 4, "eval_amount": 10220.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1080.00, "holdings_qty": 112, "current_price": 81.60, "orders_placed_today": 11, "note": "매도 1건 체결" },
+            { "date": "2026-06-29", "cycle_number": 1, "day_in_cycle": 5, "eval_amount": 10450.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1162.00, "holdings_qty": 111, "current_price": 83.67, "orders_placed_today": 10, "note": "매도 1건 체결" },
+            { "date": "2026-06-30", "cycle_number": 1, "day_in_cycle": 6, "eval_amount": 10320.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1162.00, "holdings_qty": 111, "current_price": 82.50, "orders_placed_today": 10, "note": "" },
+            { "date": "2026-07-01", "cycle_number": 1, "day_in_cycle": 7, "eval_amount": 10014.00, "v_current": 10000.00, "v_min": 8500.00, "v_max": 11500.00, "pool": 1162.00, "holdings_qty": 111, "current_price": 79.75, "orders_placed_today": 10, "note": "" }
+        ];
+
+        // 대시보드 렌더링 함수
+        function renderDashboard(data, isDemo = false) {
+            const badge = document.getElementById("status-badge");
+            const badgeText = document.getElementById("status-text");
+            if (isDemo) {
+                badge.classList.add("demo");
+                badgeText.innerText = "데모 데이터 모드";
+            } else {
+                badge.classList.remove("demo");
+                badgeText.innerText = "실시간 서버 연동";
+            }
+
+            // 최신 데이터 가져오기
+            const latest = data[data.length - 1];
+
+            // 상단 요약 카드 데이터 반영
+            document.getElementById("metric-assets").innerText = `$${latest.eval_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById("metric-qty").innerText = `${latest.holdings_qty} 주`;
+            document.getElementById("metric-price").innerText = `$${latest.current_price.toLocaleString()}`;
+            document.getElementById("metric-pool").innerText = `$${latest.pool.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById("metric-limit").innerText = `$${(latest.pool * 0.75).toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById("metric-cycle").innerText = `Day ${latest.day_in_cycle + 1}`;
+            document.getElementById("metric-cycle-num").innerText = latest.cycle_number;
+
+            // 표(Table) 그리기
+            const tbody = document.getElementById("logs-tbody");
+            tbody.innerHTML = "";
+            
+            // 최신 기록이 위로 가도록 역순 정렬
+            const displayData = [...data].reverse();
+            displayData.forEach(row => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><strong>${row.date}</strong></td>
+                    <td>Cycle ${row.cycle_number}</td>
+                    <td>Day ${row.day_in_cycle + 1}/10</td>
+                    <td>$${row.current_price.toLocaleString()}</td>
+                    <td>${row.holdings_qty} 주</td>
+                    <td>$${row.pool.toLocaleString()}</td>
+                    <td><strong>$${row.eval_amount.toLocaleString()}</strong></td>
+                    <td>${row.orders_placed_today} 건</td>
+                    <td>${row.note ? `<span class="note-badge">${row.note}</span>` : ""}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 1. 자산 추이 라인 차트 생성
+            const dates = data.map(d => d.date.substring(5)); // '06-22' 형태로 축소
+            const evalAmounts = data.map(d => d.eval_amount);
+            const vCurrents = data.map(d => d.v_current);
+            const vMins = data.map(d => d.v_min);
+            const vMaxs = data.map(d => d.v_max);
+
+            const ctxAsset = document.getElementById('assetChart').getContext('2d');
+            new Chart(ctxAsset, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        {
+                            label: '총 평가 자산 (USD)',
+                            data: evalAmounts,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.15
+                        },
+                        {
+                            label: '목표 밸류 V',
+                            data: vCurrents,
+                            borderColor: '#a855f7',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0
+                        },
+                        {
+                            label: '매수선 BuyLine (V - 15%)',
+                            data: vMins,
+                            borderColor: 'rgba(239, 68, 68, 0.4)',
+                            borderWidth: 1.5,
+                            borderDash: [3, 3],
+                            fill: false,
+                            tension: 0
+                        },
+                        {
+                            label: '매도선 SellLine (V + 15%)',
+                            data: vMaxs,
+                            borderColor: 'rgba(16, 185, 129, 0.4)',
+                            borderWidth: 1.5,
+                            borderDash: [3, 3],
+                            fill: false,
+                            tension: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#9ca3af',
+                                font: { family: 'Outfit' }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                            ticks: { color: '#9ca3af', font: { family: 'Outfit' } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                            ticks: { color: '#9ca3af', font: { family: 'Outfit' } }
+                        }
+                    }
+                }
+            });
+
+            // 2. 파이 차트 생성 (주식 평가금액 vs 예수금)
+            const latestHoldingsValue = latest.holdings_qty * latest.current_price;
+            const latestPool = latest.pool;
+
+            const ctxRatio = document.getElementById('ratioChart').getContext('2d');
+            new Chart(ctxRatio, {
+                type: 'doughnut',
+                data: {
+                    labels: ['TQQQ 주식 평가금', '가용 현금(Pool)'],
+                    datasets: [{
+                        data: [latestHoldingsValue, latestPool],
+                        backgroundColor: ['#6366f1', '#f59e0b'],
+                        borderColor: '#161e31',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#9ca3af',
+                                font: { family: 'Outfit' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 서버에서 logs/daily_log.json 파일 호출
+        fetch('logs/daily_log.json')
+            .then(res => {
+                if (!res.ok) throw new Error('파일이 없음');
+                return res.json();
+            })
+            .then(data => {
+                if (data && data.length > 0) {
+                    renderDashboard(data, false);
+                } else {
+                    renderDashboard(DEMO_DATA, true);
+                }
+            })
+            .catch(err => {
+                console.log("실제 로그 데이터를 불러오지 못해 데모 화면을 띄웁니다.", err);
+                renderDashboard(DEMO_DATA, true);
+            });
+    </script>
+</body>
+</html>
