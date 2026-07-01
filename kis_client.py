@@ -47,15 +47,22 @@ def get_current_price(symbol: str) -> float:
     headers = auth.auth_headers(_tr("price"))
     params = {
         "AUTH": "",
-        "EXCD": EXCHANGE_CODE,
+        "EXCD": "NAS",  # 시세조회 API는 3자리 코드(NAS) 사용. 주문/잔고 API는 4자리(NASD) 사용 - 서로 다름 주의
         "SYMB": symbol,
     }
     res = requests.get(url, headers=headers, params=params, timeout=10)
+    if res.status_code != 200:
+        print(f"[디버그 get_current_price] status={res.status_code} body={res.text}")
     res.raise_for_status()
     body = res.json()
     if body.get("rt_cd") != "0":
         raise RuntimeError(f"현재가 조회 실패: {body.get('msg1')}")
-    return float(body["output"]["last"])
+    output = body.get("output", {})
+    print(f"[디버그 get_current_price] raw output={output}")
+    price = float(output.get("last") or 0)
+    if price <= 0:
+        raise RuntimeError(f"현재가가 0 이하로 조회됨 (output={output}) - 필드명이 잘못됐을 수 있음")
+    return price
 
 
 def get_overseas_balance() -> dict:
